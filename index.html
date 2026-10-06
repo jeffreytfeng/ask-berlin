@@ -23,6 +23,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
@@ -70,6 +71,10 @@ h1 .city{color:var(--accent-2)}
 
 /* Chips */
 .chips{padding:12px 20px 4px}
+.chips.folded .group{display:none}
+.chips-toggle{display:none;width:100%;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:var(--r-s);border:1px dashed var(--line-2);color:var(--muted);font-size:12.5px}
+.chips.folded .chips-toggle{display:flex}
+.chips-toggle:hover{color:var(--fg);border-color:var(--accent)}
 .group{margin-bottom:10px}
 .group-h{display:flex;align-items:baseline;gap:8px;font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin:0 0 6px}
 .group-h .tag{font-size:10.5px;letter-spacing:.02em;text-transform:none;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--fg-2)}
@@ -228,7 +233,7 @@ pre.url .p{color:var(--good)}
         <div class="where"><span class="pin"></span>Proximity: Pressehaus Podium, Karl-Liebknecht-Str. 29A (this room). "Near me" means near here.</div>
       </section>
 
-      <section class="chips" id="chips" aria-label="Example queries"></section>
+      <section class="chips" id="chips" aria-label="Example queries"><button class="chips-toggle" id="chipsToggle" type="button">Show the example questions <span>▾</span></button></section>
 
       <div class="status" id="status" hidden>
         <div class="q" id="statusQ"></div>
@@ -421,6 +426,7 @@ async function search(q, opts = {}) {
   renderReq(url);
   $("go").disabled = true; $("empty").hidden = true; $("notice").hidden = true; $("vote").hidden = true;
   $("status").hidden = false; $("statusQ").textContent = q; $("statusPills").innerHTML = '<span class="pill">…</span>';
+  $("chips").classList.add("folded"); document.querySelector(".panel-scroll").scrollTo({ top: 0, behavior: "smooth" });
   $("results").innerHTML = "";
   if (inflight) inflight.abort();
   const ctrl = new AbortController(); inflight = ctrl;
@@ -592,6 +598,8 @@ $("copyCurl").addEventListener("click", async () => {
     root.appendChild(sec);
   });
 })();
+
+$("chipsToggle").addEventListener("click", () => $("chips").classList.remove("folded"));
 
 /* Rotating placeholder */
 (function rotate() {
