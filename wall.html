@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Berlin · Live Wall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Projector view: big type, three stat tiles, a live feed, and a QR to join. Dark to match the demo. */
+:root{
+  --bg:#0B0F14; --panel:#121820; --panel-2:#192230; --line:#243041; --line-2:#2E3B50;
+  --fg:#EEF2F7; --fg-2:#C6CFDC; --muted:#8C98AB; --faint:#5F6B7E;
+  --accent:#4F7DFF; --accent-2:#7B9DFF; --good:#4FD1A1; --warn:#F2B84B; --bad:#FF6B6B;
+  --sans:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:clamp(14px,1.1vw,20px);line-height:1.4;overflow:hidden;-webkit-font-smoothing:antialiased}
+.wrap{height:100%;display:grid;grid-template-rows:auto 1fr;padding:2.2vw 2.6vw;gap:1.6vw}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:2vw}
+.eyebrow{font-size:.75em;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.eyebrow .dot{display:inline-block;width:.55em;height:.55em;border-radius:50%;background:var(--good);margin-right:.5em;box-shadow:0 0 0 .25em rgba(79,209,161,.2)}
+h1{margin:.1em 0 0;font-size:2.6em;line-height:1;letter-spacing:-.02em;font-weight:700}
+h1 span{color:var(--accent-2)}
+.stats{display:flex;gap:1vw}
+.stat{min-width:9em;padding:.8em 1.1em;border-radius:.8em;background:var(--panel);border:1px solid var(--line)}
+.stat .v{font-family:var(--mono);font-size:2em;line-height:1.05;font-variant-numeric:tabular-nums;color:var(--fg)}
+.stat .l{color:var(--muted);font-size:.8em;margin-top:.3em}
+.stat.good .v{color:var(--good)}
+main{display:grid;grid-template-columns:1fr 22em;gap:1.6vw;min-height:0}
+.feed{min-height:0;overflow:hidden;position:relative}
+.feed::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6em;background:linear-gradient(transparent,var(--bg));pointer-events:none}
+ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.6em}
+li{display:grid;grid-template-columns:1fr auto;gap:1em;align-items:center;padding:.85em 1.1em;border-radius:.8em;background:var(--panel);border:1px solid var(--line);animation:in .5s ease-out}
+@keyframes in{from{opacity:0;transform:translateY(-.5em)}to{opacity:1;transform:none}}
+li .q{font-size:1.25em;font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+li .q .de{font-family:var(--mono);font-size:.55em;color:var(--muted);margin-left:.6em;vertical-align:.2em}
+li .top{color:var(--muted);font-size:.9em;margin-top:.25em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+li .top b{color:var(--fg-2);font-weight:500}
+.right{display:flex;flex-direction:column;align-items:flex-end;gap:.35em;white-space:nowrap}
+.ms{font-family:var(--mono);color:var(--good);font-variant-numeric:tabular-nums}
+.n{font-family:var(--mono);color:var(--muted);font-size:.85em}
+.v{font-size:1.1em}
+.v.up{color:var(--good)} .v.down{color:var(--bad)} .v.none{color:var(--faint)}
+aside{display:flex;flex-direction:column;gap:1.2em;min-height:0}
+.join{padding:1.1em;border-radius:.8em;background:var(--panel);border:1px solid var(--line);text-align:center}
+.join h2{margin:0 0 .2em;font-size:1.1em}
+.join p{margin:0 0 .8em;color:var(--muted);font-size:.85em}
+#qr{display:inline-block;background:#fff;padding:.6em;border-radius:.6em}
+#qr img,#qr canvas{display:block;width:100%;height:auto}
+.join .url{font-family:var(--mono);font-size:.8em;color:var(--fg-2);margin-top:.7em;word-break:break-all}
+.popular{padding:1.1em;border-radius:.8em;background:var(--panel);border:1px solid var(--line);min-height:0;overflow:hidden}
+.popular h2{margin:0 0 .6em;font-size:.8em;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.popular ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.45em}
+.popular li{display:flex;justify-content:space-between;gap:1em;padding:.45em .7em;font-size:.9em;animation:none;border-radius:.5em}
+.popular li .c{font-family:var(--mono);color:var(--muted)}
+.empty{color:var(--muted);padding:2em 0;text-align:center}
+.setup{max-width:60ch;margin:10vh auto;color:var(--fg-2)}
+.setup code{font-family:var(--mono);background:var(--panel-2);padding:.1em .4em;border-radius:.3em}
+@media (max-width:900px){main{grid-template-columns:1fr}aside{display:none}.stats{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow"><span class="dot"></span>Live from the room · Mapbox Search Box API · Natural Language Queries</div>
+      <h1>Ask <span>Berlin</span></h1>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="sCount">0</div><div class="l">questions asked</div></div>
+      <div class="stat good"><div class="v" id="sMs">—</div><div class="l">median latency</div></div>
+      <div class="stat"><div class="v" id="sUp">—</div><div class="l">understood (👍 of votes)</div></div>
+    </div>
+  </header>
+  <main>
+    <section class="feed"><ul id="feed"></ul><div class="empty" id="empty">Waiting for the first question…</div></section>
+    <aside>
+      <div class="join">
+        <h2>Join from your laptop</h2>
+        <p>Scan to open the demo and ask your own.</p>
+        <div id="qr"></div>
+        <div class="url" id="url"></div>
+      </div>
+      <div class="popular"><h2>Most asked</h2><ol id="popular"></ol></div>
+    </aside>
+  </main>
+</div>
+<div class="setup" id="setup" hidden>
+  <h1 style="font-size:1.6em">Wall not configured</h1>
+  <p>Add <code>firebase-config.js</code> next to this file (copy <code>firebase-config.example.js</code> and paste the Firebase web-app config). The main demo works without it.</p>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const demoUrl = location.origin + location.pathname.replace(/wall\.html$/, "");
+$("url").textContent = demoUrl.replace(/^https?:\/\//, "");
+if (window.QRCode) new QRCode($("qr"), { text: demoUrl, width: 260, height: 260, correctLevel: QRCode.CorrectLevel.M });
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+const cfg = window.ASK_BERLIN_FIREBASE;
+if (!(cfg && cfg.databaseURL && window.firebase)) {
+  document.querySelector(".wrap").hidden = true; $("setup").hidden = false;
+} else {
+  firebase.initializeApp(cfg);
+  const ref = firebase.database().ref("queries").orderByChild("ts").limitToLast(80);
+  const items = new Map();
+  const MAX_VISIBLE = 14;
+  function render() {
+    const arr = [...items.entries()].sort((a, b) => (b[1].ts || 0) - (a[1].ts || 0));
+    $("empty").hidden = arr.length > 0;
+    const feed = $("feed"); const seen = new Set();
+    arr.slice(0, MAX_VISIBLE).forEach(([id, d], i) => {
+      seen.add(id);
+      let li = feed.querySelector('[data-id="' + id + '"]');
+      if (!li) { li = document.createElement("li"); li.dataset.id = id; }
+      const vote = d.vote === "up" ? '<span class="v up">👍</span>' : d.vote === "down" ? '<span class="v down">👎</span>' : '<span class="v none">·</span>';
+      li.innerHTML = '<div><div class="q">' + esc(d.q) + (d.lang === "de" ? '<span class="de">DE</span>' : "") + '</div><div class="top">' + (d.top && d.top.name ? "↳ <b>" + esc(d.top.name) + "</b> " + esc(d.top.place || "") : (d.n === 0 ? "no results" : "")) + '</div></div><div class="right"><span class="ms">' + (d.ms != null ? d.ms + " ms" : "") + '</span><span class="n">' + (d.n ?? "") + ' results</span>' + vote + "</div>";
+      if (feed.children[i] !== li) feed.insertBefore(li, feed.children[i] || null);
+    });
+    [...feed.children].forEach(el => { if (!seen.has(el.dataset.id)) el.remove(); });
+    // stats
+    const all = [...items.values()];
+    $("sCount").textContent = all.length;
+    const ms = all.map(d => d.ms).filter(x => typeof x === "number").sort((a, b) => a - b);
+    $("sMs").textContent = ms.length ? ms[Math.floor(ms.length / 2)] + " ms" : "—";
+    const votes = all.filter(d => d.vote === "up" || d.vote === "down");
+    $("sUp").textContent = votes.length ? Math.round(100 * votes.filter(d => d.vote === "up").length / votes.length) + "%" : "—";
+    // popular
+    const counts = new Map();
+    all.forEach(d => { const k = (d.q || "").trim().toLowerCase(); if (k) counts.set(k, (counts.get(k) || 0) + 1); });
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 7);
+    $("popular").innerHTML = top.map(([q, c]) => "<li><span>" + esc(q) + '</span><span class="c">×' + c + "</span></li>").join("") || '<li style="color:var(--faint)">Nothing yet</li>';
+  }
+  let pending = false;
+  function schedule() { if (pending) return; pending = true; requestAnimationFrame(() => { pending = false; render(); }); }
+  ref.on("child_added", s => { items.set(s.key, s.val() || {}); schedule(); });
+  ref.on("child_changed", s => { items.set(s.key, s.val() || {}); schedule(); });
+  ref.on("child_removed", s => { items.delete(s.key); schedule(); });
+}
+</script>
+</body>
+</html>

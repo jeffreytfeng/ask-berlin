@@ -1,0 +1,11 @@
+{
+  "rules": {
+    "queries": {
+      ".read": true,
+      ".write": true,
+      "$id": {
+        ".validate": "newData.hasChildren(['q', 'ts']) && newData.child('q').isString() && newData.child('q').val().length <= 256"
+      }
+    }
+  }
+}

@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ask Berlin</title>
+<meta name="description" content="Live demo of Natural Language Queries in the Mapbox Search Box API. Type a question the way a person would ask it; one API call, no LLM.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.css" rel="stylesheet">
+<style>
+/* Layout: fixed left panel (search, chips, results, request) over a full-bleed dark map.
+   Dark-first by design: the map is the hero and the room will be lit for a projector. */
+:root{
+  --bg:#0B0F14; --panel:#121820; --panel-2:#192230; --panel-3:#1F2A3A; --line:#243041; --line-2:#2E3B50;
+  --fg:#EEF2F7; --fg-2:#C6CFDC; --muted:#8C98AB; --faint:#5F6B7E;
+  --accent:#4F7DFF; --accent-2:#7B9DFF; --accent-ink:#071022;
+  --good:#4FD1A1; --warn:#F2B84B; --bad:#FF6B6B;
+  --sans:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --panel-w:440px; --r:12px; --r-s:8px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px}
+a{color:var(--accent-2)}
+#map{position:fixed;inset:0}
+.app{position:fixed;inset:0;display:grid;grid-template-columns:var(--panel-w) 1fr;pointer-events:none}
+.panel{pointer-events:auto;display:flex;flex-direction:column;min-width:0;height:100%;background:var(--panel);border-right:1px solid var(--line);box-shadow:8px 0 40px rgba(0,0,0,.35)}
+.panel-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.panel-scroll::-webkit-scrollbar{width:10px}
+.panel-scroll::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:10px;border:3px solid var(--panel)}
+
+/* Header */
+.hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 10px}
+.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.eyebrow .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good);margin-right:6px;vertical-align:1px;box-shadow:0 0 0 3px rgba(79,209,161,.18)}
+h1{margin:2px 0 0;font-size:26px;line-height:1.1;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
+h1 .city{color:var(--accent-2)}
+.sub{margin:6px 0 0;color:var(--muted);font-size:13px;max-width:36ch}
+.hdr-actions{display:flex;gap:6px;flex-shrink:0}
+.icon-btn{width:36px;height:36px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line);display:grid;place-items:center;color:var(--fg-2)}
+.icon-btn:hover{background:var(--panel-3);color:var(--fg)}
+.icon-btn svg{width:18px;height:18px}
+
+/* Search */
+.search{padding:8px 20px 0}
+.search-box{display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:14px;padding:6px 6px 6px 14px;transition:border-color .15s,box-shadow .15s}
+.search-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px rgba(79,125,255,.18)}
+.search-box input{flex:1;min-width:0;background:none;border:0;color:var(--fg);font:inherit;font-size:16px;padding:8px 0}
+.search-box input::placeholder{color:var(--faint)}
+.go{height:40px;padding:0 16px;border-radius:10px;background:var(--accent);color:#fff;font-weight:600;display:flex;align-items:center;gap:6px}
+.go:hover{background:var(--accent-2)}
+.go:disabled{opacity:.6;cursor:progress}
+.go svg{width:16px;height:16px}
+.opts{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 0 2px}
+.opt{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--fg-2);font-size:12.5px;font-weight:500}
+.opt[aria-pressed="true"]{background:rgba(79,125,255,.16);border-color:var(--accent);color:#fff}
+.opt .k{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.opt[aria-pressed="true"] .k{color:var(--accent-2)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-left:auto}
+.seg button{padding:5px 11px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--panel-3);color:#fff}
+.where{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;padding:8px 0 0}
+.where .pin{width:8px;height:8px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 3px rgba(242,184,75,.2)}
+
+/* Chips */
+.chips{padding:12px 20px 4px}
+.group{margin-bottom:10px}
+.group-h{display:flex;align-items:baseline;gap:8px;font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin:0 0 6px}
+.group-h .tag{font-size:10.5px;letter-spacing:.02em;text-transform:none;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--fg-2)}
+.group-h .tag.warn{color:var(--warn);border-color:rgba(242,184,75,.4)}
+.chip-row{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:6px 11px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);color:var(--fg-2);font-size:13px;text-align:left;max-width:100%}
+.chip:hover{border-color:var(--accent);color:#fff;background:var(--panel-3)}
+.chip.de::after{content:"DE";font-family:var(--mono);font-size:9.5px;color:var(--muted);margin-left:7px;vertical-align:1px}
+.chip.stump{border-style:dashed}
+
+/* Status + results */
+.status{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 20px 6px;min-height:40px}
+.status .q{font-weight:600;color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pills{display:flex;gap:6px;flex-shrink:0}
+.pill{font-family:var(--mono);font-size:11.5px;padding:3px 8px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line);color:var(--fg-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.pill.good{color:var(--good);border-color:rgba(79,209,161,.35)}
+.pill.warn{color:var(--warn);border-color:rgba(242,184,75,.35)}
+.notice{margin:0 20px 8px;padding:10px 12px;border-radius:var(--r-s);background:rgba(242,184,75,.1);border:1px solid rgba(242,184,75,.35);color:var(--fg-2);font-size:13px}
+.notice b{color:var(--warn)}
+.notice.err{background:rgba(255,107,107,.1);border-color:rgba(255,107,107,.35)}
+.notice.err b{color:var(--bad)}
+.results{list-style:none;margin:0;padding:0 12px}
+.res{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:start;padding:10px 8px;border-radius:var(--r-s);border:1px solid transparent;cursor:pointer}
+.res:hover{background:var(--panel-2)}
+.res[aria-selected="true"]{background:var(--panel-2);border-color:var(--line-2)}
+.res .n{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12.5px;margin-top:1px;font-variant-numeric:tabular-nums}
+.res .name{font-weight:600;color:var(--fg);line-height:1.25}
+.res .meta{color:var(--muted);font-size:12.5px;margin-top:2px}
+.res .badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.b{font-size:11px;padding:2px 7px;border-radius:5px;background:var(--panel-3);color:var(--fg-2)}
+.b.cat{background:rgba(79,125,255,.14);color:var(--accent-2)}
+.res .dist{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;margin-top:3px}
+.vote{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 20px 12px;padding:10px 12px;border-radius:var(--r-s);background:var(--panel-2);border:1px solid var(--line)}
+.vote span{color:var(--fg-2);font-size:13px}
+.vote .btns{display:flex;gap:6px}
+.vote button{padding:6px 10px;border-radius:8px;border:1px solid var(--line-2);font-size:13px;display:flex;gap:6px;align-items:center;color:var(--fg-2)}
+.vote button:hover{background:var(--panel-3);color:#fff}
+.vote button[aria-pressed="true"].up{background:rgba(79,209,161,.18);border-color:var(--good);color:var(--good)}
+.vote button[aria-pressed="true"].down{background:rgba(255,107,107,.18);border-color:var(--bad);color:var(--bad)}
+.empty{padding:28px 20px;color:var(--muted);text-align:center;font-size:13.5px}
+
+/* Request footer */
+.req{border-top:1px solid var(--line);background:var(--panel);padding:10px 20px 14px}
+.req-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.req-h .t{font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.req-h .t b{color:var(--good);font-weight:600;text-transform:none;letter-spacing:0}
+.copy{font-size:12px;color:var(--fg-2);padding:4px 9px;border-radius:7px;border:1px solid var(--line)}
+.copy:hover{background:var(--panel-2);color:#fff}
+pre.url{margin:0;font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--fg-2);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-s);padding:9px 11px;white-space:pre-wrap;word-break:break-all;max-height:84px;overflow:auto}
+pre.url .m{color:var(--accent-2)}
+pre.url .p{color:var(--good)}
+.foot{display:flex;flex-wrap:wrap;gap:4px 10px;color:var(--faint);font-size:11.5px;margin-top:8px}
+.foot a{color:var(--muted);text-decoration:none}
+.foot a:hover{color:var(--fg)}
+
+/* Map overlays */
+.map-top{position:fixed;top:14px;right:14px;display:flex;gap:8px;pointer-events:auto;z-index:2}
+.badge{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:rgba(18,24,32,.9);border:1px solid var(--line);backdrop-filter:blur(8px);font-size:12.5px;color:var(--fg-2)}
+.badge .ms{font-family:var(--mono);font-weight:500;color:var(--good);font-variant-numeric:tabular-nums}
+.badge .sep{width:1px;height:14px;background:var(--line-2)}
+.marker{width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--accent);border:2px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,.45);display:grid;place-items:center;cursor:pointer;transition:transform .15s}
+.marker span{transform:rotate(45deg);font-weight:700;font-size:12px;color:#fff;font-variant-numeric:tabular-nums}
+.marker.sel{background:var(--warn);transform:rotate(-45deg) scale(1.2)}
+.marker.sel span{color:var(--accent-ink)}
+.venue{width:16px;height:16px;border-radius:50%;background:var(--warn);border:3px solid #fff;box-shadow:0 0 0 6px rgba(242,184,75,.25),0 4px 14px rgba(0,0,0,.4)}
+.venue::after{content:"";position:absolute;inset:-10px;border-radius:50%;border:2px solid rgba(242,184,75,.5);animation:pulse 2.2s ease-out infinite}
+@keyframes pulse{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.8);opacity:0}}
+.mapboxgl-popup-content{background:var(--panel-2);color:var(--fg);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;font-family:var(--sans);font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.mapboxgl-popup-tip{border-top-color:var(--panel-2)!important;border-bottom-color:var(--panel-2)!important}
+.mapboxgl-ctrl-attrib{font-family:var(--sans)}
+
+/* Details drawer */
+.drawer{position:fixed;right:14px;bottom:14px;width:360px;max-width:calc(100vw - var(--panel-w) - 28px);max-height:calc(100vh - 90px);overflow:auto;background:rgba(18,24,32,.96);border:1px solid var(--line-2);border-radius:14px;backdrop-filter:blur(10px);box-shadow:0 16px 48px rgba(0,0,0,.5);pointer-events:auto;z-index:3;padding:16px 16px 14px}
+.drawer[hidden]{display:none}
+.drawer .close{position:absolute;top:10px;right:10px}
+.drawer .photo{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:10px;margin-bottom:10px;background:var(--panel-3)}
+.drawer h2{margin:0 26px 2px 0;font-size:17px;line-height:1.2;letter-spacing:-.01em}
+.drawer .addr{color:var(--muted);font-size:12.5px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:12px 0 0;font-size:13px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;color:var(--fg-2);min-width:0;overflow-wrap:anywhere}
+.kv .open{color:var(--good);font-weight:600}
+.kv .closed{color:var(--bad);font-weight:600}
+.stars{color:var(--warn);letter-spacing:1px}
+.amen{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+.drawer .src{margin-top:12px;font-family:var(--mono);font-size:10.5px;color:var(--faint);word-break:break-all}
+.drawer .loading{color:var(--muted);font-size:13px;padding:6px 0}
+
+/* QR modal */
+.modal{position:fixed;inset:0;background:rgba(5,8,12,.7);display:grid;place-items:center;z-index:10;pointer-events:auto}
+.modal[hidden]{display:none}
+.modal .card{background:var(--panel);border:1px solid var(--line-2);border-radius:18px;padding:26px;text-align:center;max-width:min(92vw,420px)}
+.modal .card h2{margin:0 0 4px;font-size:22px}
+.modal .card p{margin:0 0 16px;color:var(--muted)}
+.modal #qr{display:inline-block;background:#fff;padding:14px;border-radius:12px}
+.modal #qr img,.modal #qr canvas{display:block}
+.modal .url{font-family:var(--mono);font-size:13px;color:var(--fg-2);margin-top:14px;word-break:break-all}
+.modal .close-row{margin-top:14px}
+.modal .close-row button{padding:8px 16px;border-radius:9px;border:1px solid var(--line-2);color:var(--fg-2)}
+
+@media (prefers-reduced-motion:reduce){.venue::after{animation:none}.marker{transition:none}}
+@media (max-width:860px){
+  :root{--panel-w:100vw}
+  body{overflow:auto}
+  #map{position:relative;inset:auto;height:46vh;min-height:300px}
+  .app{position:relative;inset:auto;display:block;pointer-events:auto}
+  .panel{height:auto;border-right:0;border-top:1px solid var(--line);box-shadow:none}
+  .panel-scroll{overflow:visible}
+  .map-top{position:absolute;top:10px;right:10px}
+  .drawer{position:fixed;right:10px;left:10px;bottom:10px;width:auto;max-width:none;max-height:60vh}
+  h1{font-size:22px}
+}
+</style>
+</head>
+<body>
+<div id="map" aria-label="Map of Berlin"></div>
+
+<div class="map-top">
+  <div class="badge" id="latencyBadge" hidden>
+    <span class="ms" id="ms">— ms</span><span class="sep"></span><span>1 request</span><span class="sep"></span><span>0 LLM calls</span>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="panel">
+    <div class="panel-scroll">
+      <header class="hdr">
+        <div>
+          <div class="eyebrow"><span class="dot"></span>Mapbox Search Box API · Natural Language Queries · Public preview</div>
+          <h1>Ask <span class="city">Berlin</span></h1>
+          <p class="sub">Type it the way a person would say it. One API call. No LLM in the loop.</p>
+        </div>
+        <div class="hdr-actions">
+          <button class="icon-btn" id="qrBtn" title="Share this page (QR code)" aria-label="Share this page (QR code)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14h1v1h-1zM17 20h4M14 20h1"/></svg>
+          </button>
+          <a class="icon-btn" id="wallLink" href="wall.html" target="_blank" title="Open the live query wall" aria-label="Open the live query wall" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          </a>
+        </div>
+      </header>
+
+      <section class="search">
+        <form class="search-box" id="form" role="search">
+          <input id="q" type="text" autocomplete="off" spellcheck="false" placeholder="coffee shops with wifi near Alexanderplatz" aria-label="Natural language search query" maxlength="256">
+          <button class="go" id="go" type="submit">Ask <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </form>
+        <div class="opts">
+          <button class="opt" id="optOpen" aria-pressed="false" title="Adds open_now=true to the request">Open now <span class="k">open_now</span></button>
+          <button class="opt" id="optRating" aria-pressed="false" title="Adds minimum_rating=4 to the request">4★ and up <span class="k">minimum_rating</span></button>
+          <div class="seg" role="group" aria-label="Response language">
+            <button id="langEn" aria-pressed="true" title="language=en">EN</button>
+            <button id="langDe" aria-pressed="false" title="language=de">DE</button>
+          </div>
+        </div>
+        <div class="where"><span class="pin"></span>Proximity: Pressehaus Podium, Karl-Liebknecht-Str. 29A (this room). "Near me" means near here.</div>
+      </section>
+
+      <section class="chips" id="chips" aria-label="Example queries"></section>
+
+      <div class="status" id="status" hidden>
+        <div class="q" id="statusQ"></div>
+        <div class="pills" id="statusPills"></div>
+      </div>
+      <div class="notice" id="notice" hidden></div>
+      <ol class="results" id="results"></ol>
+      <div class="vote" id="vote" hidden>
+        <span>Did it understand you?</span>
+        <div class="btns">
+          <button class="up" id="voteUp" aria-pressed="false">👍 Yes</button>
+          <button class="down" id="voteDown" aria-pressed="false">👎 Not quite</button>
+        </div>
+      </div>
+      <div class="empty" id="empty">Pick an example above or ask your own question. Results are live from <span style="font-family:var(--mono)">api.mapbox.com</span>, nothing is cached.</div>
+    </div>
+
+    <footer class="req">
+      <div class="req-h">
+        <div class="t">The request · <b>1 call</b></div>
+        <button class="copy" id="copyCurl">Copy as curl</button>
+      </div>
+      <pre class="url" id="reqUrl"><span class="m">GET</span> https://api.mapbox.com/search/searchbox/v1/forward?<span class="p">q</span>=…&amp;<span class="p">proximity</span>=13.4127,52.5252&amp;<span class="p">access_token</span>={token}</pre>
+      <div class="foot">
+        <a href="https://docs.mapbox.com/api/search/search-box/#text-search" target="_blank" rel="noopener">Search Box API docs</a>
+        <a href="https://docs.mapbox.com/playground/search-box/forward-reverse/" target="_blank" rel="noopener">API playground</a>
+        <span>Mapbox CAB · Berlin · Oct 2026</span>
+      </div>
+    </footer>
+  </aside>
+</div>
+
+<aside class="drawer" id="drawer" hidden aria-live="polite">
+  <button class="icon-btn close" id="drawerClose" aria-label="Close details">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+  <div id="drawerBody"></div>
+</aside>
+
+<div class="modal" id="qrModal" hidden role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+  <div class="card">
+    <h2 id="qrTitle">Open Ask Berlin on your laptop</h2>
+    <p>Scan, or type the address.</p>
+    <div id="qr"></div>
+    <div class="url" id="qrUrl"></div>
+    <div class="close-row"><button id="qrClose">Close</button></div>
+  </div>
+</div>
+
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+/* ============================================================
+   Config
+   ============================================================ */
+const MAPBOX_TOKEN = "__MAPBOX_TOKEN__"; // injected at deploy time from the MAPBOX_TOKEN repository secret (see .github/workflows/pages.yml)
+const VENUE = { lng: 13.412742, lat: 52.525195, name: "Pressehaus Podium" };
+const API = "https://api.mapbox.com/search/searchbox/v1";
+const LIMIT = 10;
+
+/* Every example below was run against the public preview on 6 Oct 2026 from this venue
+   and returned the intended place(s) in the top results. */
+const GROUPS = [
+  { title: "Ride-hailing & mobility", items: [
+    { q: "hotels near Berlin Hauptbahnhof" },
+    { q: "Apotheke in der Nähe vom Hauptbahnhof Berlin", lang: "de" },
+    { q: "Ostbahnhof Berlin" },
+    { q: "Berlin Brandenburg Airport" },
+  ]},
+  { title: "Food delivery", items: [
+    { q: "sushi in Friedrichshain open now" },
+    { q: "Sushi in Friedrichshain", lang: "de" },
+    { q: "pizza in Prenzlauer Berg" },
+    { q: "late night kebab in Kreuzberg open now" },
+    { q: "vietnamese restaurants in Prenzlauer Berg" },
+  ]},
+  { title: "Parking & in-car", items: [
+    { q: "parking garage near Potsdamer Platz" },
+    { q: "parking near Alexanderplatz Berlin" },
+    { q: "hotels with parking in Berlin Mitte" },
+    { q: "EV charging stations near Kurfürstendamm" },
+    { q: "Berghain Berlin" },
+  ]},
+  { title: "Search & discovery", items: [
+    { q: "coffee shops with wifi near Alexanderplatz" },
+    { q: "vegan cafes in Neukölln", rating: true },
+    { q: "bike repair shops in Kreuzberg" },
+  ]},
+  { title: "Last mile & retail", items: [
+    { q: "Edeka in Charlottenburg" },
+    { q: "Rewe in Friedrichshain" },
+    { q: "supermarkets open now in Friedrichshain" },
+  ]},
+  { title: "Beyond Berlin", tag: "same call, anywhere", items: [
+    { q: "pizza in Chicago" },
+    { q: "Blue Lagoon in Iceland" },
+    { q: "Starbucks in Seattle" },
+    { q: "Museum of Fine Arts, Boston" },
+  ]},
+  { title: "Try to stump it", tag: "not yet: reasoning is a separate roadmap item", warn: true, items: [
+    { q: "best romantic dinner within a 15 minute walk of Brandenburg Gate", stump: true },
+    { q: "plan me a day in Berlin", stump: true },
+  ]},
+];
+
+/* ============================================================
+   State
+   ============================================================ */
+const state = { lang: "en", openNow: false, rating: false, lastReq: null, lastResults: [], selected: null, markers: [], popup: null, lastKey: null, voted: null, firebaseRef: null };
+const $ = (id) => document.getElementById(id);
+
+/* ============================================================
+   Map
+   ============================================================ */
+if (MAPBOX_TOKEN.indexOf("pk.") !== 0) { document.addEventListener("DOMContentLoaded", () => { const n = document.getElementById("notice"); n.className = "notice err"; n.hidden = false; n.innerHTML = "<b>No Mapbox token.</b> This page expects the token to be injected at deploy time (MAPBOX_TOKEN secret). For local testing, replace __MAPBOX_TOKEN__ in index.html."; }); }
+mapboxgl.accessToken = MAPBOX_TOKEN;
+const map = new mapboxgl.Map({
+  container: "map",
+  style: "mapbox://styles/mapbox/dark-v11",
+  center: [VENUE.lng + 0.012, VENUE.lat],
+  zoom: 12.6,
+  attributionControl: true,
+  cooperativeGestures: false,
+});
+map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
+const venueEl = document.createElement("div"); venueEl.className = "venue"; venueEl.title = VENUE.name + " (you are here)";
+new mapboxgl.Marker({ element: venueEl }).setLngLat([VENUE.lng, VENUE.lat])
+  .setPopup(new mapboxgl.Popup({ offset: 14, closeButton: false }).setText("You are here: " + VENUE.name)).addTo(map);
+
+function clearMarkers() { state.markers.forEach(m => m.remove()); state.markers = []; if (state.popup) { state.popup.remove(); state.popup = null; } }
+
+function plot(features) {
+  clearMarkers();
+  const bounds = new mapboxgl.LngLatBounds();
+  features.forEach((f, i) => {
+    const [lng, lat] = f.geometry.coordinates;
+    const el = document.createElement("div"); el.className = "marker"; el.innerHTML = "<span>" + (i + 1) + "</span>";
+    el.addEventListener("click", (e) => { e.stopPropagation(); select(i, true); });
+    el.addEventListener("mouseenter", () => showPopup(f));
+    const m = new mapboxgl.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map);
+    state.markers.push(m); bounds.extend([lng, lat]);
+  });
+  if (!features.length) return;
+  const panelW = window.innerWidth > 860 ? parseInt(getComputedStyle(document.documentElement).getPropertyValue("--panel-w")) : 0;
+  const far = features.every(f => (f.properties.distance || 0) > 60000);
+  if (!far) bounds.extend([VENUE.lng, VENUE.lat]);
+  map.fitBounds(bounds, { padding: { top: 80, bottom: 80, left: panelW + 60, right: 80 }, maxZoom: 15.5, duration: 900 });
+}
+
+function showPopup(f) {
+  if (state.popup) state.popup.remove();
+  state.popup = new mapboxgl.Popup({ offset: 30, closeButton: false, closeOnClick: false })
+    .setLngLat(f.geometry.coordinates).setText(f.properties.name).addTo(map);
+}
+
+/* ============================================================
+   Search
+   ============================================================ */
+function buildUrl(q) {
+  const p = new URLSearchParams();
+  p.set("q", q);
+  p.set("proximity", VENUE.lng + "," + VENUE.lat);
+  p.set("limit", String(LIMIT));
+  p.set("language", state.lang);
+  if (state.openNow) p.set("open_now", "true");
+  if (state.rating) p.set("minimum_rating", "4");
+  return { url: API + "/forward?" + p.toString(), params: p };
+}
+
+function renderReq(url) {
+  const shown = url + "&access_token={token}";
+  const html = shown.replace(/^(https:\/\/[^?]+\?)(.*)$/, (m, base, qs) =>
+    base + qs.split("&").map(kv => { const [k, ...v] = kv.split("="); return '<span class="p">' + k + "</span>=" + v.join("=").replace(/</g, "&lt;"); }).join("&amp;"));
+  $("reqUrl").innerHTML = '<span class="m">GET</span> ' + html;
+  state.lastReq = url;
+}
+
+let inflight = null;
+async function search(q, opts = {}) {
+  q = (q || "").trim(); if (!q) return;
+  if (opts.lang) setLang(opts.lang);
+  if (opts.rating !== undefined) setOpt("rating", opts.rating);
+  if (opts.openNow !== undefined) setOpt("openNow", opts.openNow);
+  $("q").value = q;
+  closeDrawer();
+  const { url } = buildUrl(q);
+  renderReq(url);
+  $("go").disabled = true; $("empty").hidden = true; $("notice").hidden = true; $("vote").hidden = true;
+  $("status").hidden = false; $("statusQ").textContent = q; $("statusPills").innerHTML = '<span class="pill">…</span>';
+  $("results").innerHTML = "";
+  if (inflight) inflight.abort();
+  const ctrl = new AbortController(); inflight = ctrl;
+  const t0 = performance.now();
+  try {
+    const res = await fetch(url + "&access_token=" + MAPBOX_TOKEN, { signal: ctrl.signal });
+    const ms = Math.round(performance.now() - t0);
+    if (!res.ok) throw new Error("HTTP " + res.status + " " + (await res.text()).slice(0, 200));
+    const data = await res.json();
+    const feats = (data.features || []);
+    state.lastResults = feats; state.selected = null; state.voted = null;
+    renderResults(feats, ms, q, opts.stump);
+    plot(feats);
+    $("ms").textContent = ms + " ms"; $("latencyBadge").hidden = false;
+    logQuery(q, feats, ms);
+  } catch (e) {
+    if (e.name === "AbortError") return;
+    $("statusPills").innerHTML = "";
+    const n = $("notice"); n.className = "notice err"; n.hidden = false;
+    n.innerHTML = "<b>Request failed.</b> " + String(e.message || e).replace(/</g, "&lt;") + " Check the network and try again.";
+  } finally { $("go").disabled = false; }
+}
+
+function fmtDist(m) { if (m == null) return ""; if (m < 1000) return Math.round(m) + " m"; if (m < 100000) return (m / 1000).toFixed(1) + " km"; return Math.round(m / 1000).toLocaleString() + " km"; }
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function renderResults(feats, ms, q, stump) {
+  const pills = ['<span class="pill good">' + ms + ' ms</span>', '<span class="pill">' + feats.length + (feats.length === 1 ? " result" : " results") + "</span>"];
+  $("statusPills").innerHTML = pills.join("");
+  const list = $("results"); list.innerHTML = "";
+  if (!feats.length) {
+    const n = $("notice"); n.className = "notice"; n.hidden = false;
+    n.innerHTML = "<b>No results.</b> Try adding the city name (\"… in Berlin\"), or loosen the filters.";
+  } else if (stump) {
+    const n = $("notice"); n.className = "notice"; n.hidden = false;
+    n.innerHTML = "<b>Expected miss.</b> The API resolved the parts it understands (category, place) and returned places. It does not yet reason about \"best\", walking time or itineraries. That is a separate, planned capability.";
+  }
+  feats.forEach((f, i) => {
+    const p = f.properties; const m = p.metadata || {};
+    const li = document.createElement("li"); li.className = "res"; li.setAttribute("role", "button"); li.tabIndex = 0; li.setAttribute("aria-selected", "false");
+    const cats = (p.poi_category || []).filter(c => !/^(food|food and drink|shopping|transportation|services)$/i.test(c)).slice(0, 2);
+    const badges = [];
+    cats.forEach(c => badges.push('<span class="b cat">' + esc(c) + "</span>"));
+    if (p.feature_type && p.feature_type !== "poi") badges.push('<span class="b">' + esc(p.feature_type) + "</span>");
+    if (m.wheelchair_accessible) badges.push('<span class="b">♿ accessible</span>');
+    if (m.primary_photo || (m.photos && m.photos.length)) badges.push('<span class="b">📷 photo</span>');
+    li.innerHTML = '<div class="n">' + (i + 1) + '</div><div><div class="name">' + esc(p.name) + '</div><div class="meta">' + esc(p.place_formatted || p.full_address || "") + '</div>' + (badges.length ? '<div class="badges">' + badges.join("") + "</div>" : "") + '</div><div class="dist">' + fmtDist(p.distance) + "</div>";
+    li.addEventListener("click", () => select(i, true));
+    li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(i, true); } });
+    li.addEventListener("mouseenter", () => showPopup(f));
+    list.appendChild(li);
+  });
+  $("vote").hidden = false; $("voteUp").setAttribute("aria-pressed", "false"); $("voteDown").setAttribute("aria-pressed", "false");
+}
+
+function select(i, fly) {
+  state.selected = i;
+  document.querySelectorAll(".res").forEach((el, j) => el.setAttribute("aria-selected", String(j === i)));
+  state.markers.forEach((m, j) => m.getElement().classList.toggle("sel", j === i));
+  const f = state.lastResults[i]; if (!f) return;
+  if (fly) map.flyTo({ center: f.geometry.coordinates, zoom: Math.max(map.getZoom(), 14.5), duration: 700, offset: window.innerWidth > 860 ? [parseInt(getComputedStyle(document.documentElement).getPropertyValue("--panel-w")) / 2, 0] : [0, 0] });
+  showPopup(f);
+  openDetails(f);
+}
+
+/* ============================================================
+   Details (/retrieve with full attribute sets)
+   ============================================================ */
+const sessionToken = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+const detailCache = new Map();
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function berlinNow() {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
+  const wd = parts.find(p => p.type === "weekday").value; const h = +parts.find(p => p.type === "hour").value; const mi = +parts.find(p => p.type === "minute").value;
+  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wd);
+  return { day, mins: (h % 24) * 60 + mi };
+}
+function hhmm(t) { return t.slice(0, 2) + ":" + t.slice(2); }
+function openStatus(oh) {
+  if (!oh || !Array.isArray(oh.periods) || !oh.periods.length) return null;
+  const now = berlinNow();
+  const today = oh.periods.filter(p => p.open && p.open.day === now.day);
+  let open = false;
+  for (const p of oh.periods) {
+    if (!p.open) continue;
+    const o = +p.open.time.slice(0, 2) * 60 + +p.open.time.slice(2);
+    if (!p.close) { if (p.open.day === now.day) open = true; continue; }
+    const c = +p.close.time.slice(0, 2) * 60 + +p.close.time.slice(2);
+    if (p.open.day === now.day && p.close.day === now.day) { if (now.mins >= o && now.mins < c) open = true; }
+    else if (p.open.day === now.day && now.mins >= o) open = true;
+    else if (p.close.day === now.day && now.mins < c) open = true;
+  }
+  const todayTxt = today.length ? today.map(p => hhmm(p.open.time) + (p.close ? "–" + hhmm(p.close.time) : "")).join(", ") : "Closed today";
+  return { open, todayTxt };
+}
+function pretty(k) { return k.replace(/_/g, " ").replace(/^serves /, "serves ").replace(/\b\w/g, c => c.toUpperCase()).replace(/Wifi/i, "Wi‑Fi"); }
+
+async function openDetails(f) {
+  const d = $("drawer"); d.hidden = false;
+  const p = f.properties;
+  const body = $("drawerBody");
+  body.innerHTML = '<h2>' + esc(p.name) + '</h2><div class="addr">' + esc(p.full_address || p.place_formatted || "") + '</div><div class="loading">Fetching Place Details…</div>';
+  let feat;
+  try {
+    if (detailCache.has(p.mapbox_id)) feat = detailCache.get(p.mapbox_id);
+    else {
+      const url = API + "/retrieve/" + encodeURIComponent(p.mapbox_id) + "?attribute_sets=basic,photos,visit,venue&language=" + state.lang + "&session_token=" + sessionToken + "&access_token=" + MAPBOX_TOKEN;
+      const res = await fetch(url); if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json(); feat = (data.features || [])[0]; detailCache.set(p.mapbox_id, feat);
+    }
+  } catch (e) { body.querySelector(".loading").textContent = "Details unavailable right now."; return; }
+  if (!feat) { body.querySelector(".loading").textContent = "No details for this place."; return; }
+  const q = feat.properties, m = q.metadata || {};
+  const photo = m.primary_photo || (Array.isArray(m.photos) && m.photos[0] && (m.photos[0].url || m.photos[0])) || null;
+  const st = openStatus(m.open_hours);
+  const rows = [];
+  if (st) rows.push(["Hours", '<span class="' + (st.open ? "open" : "closed") + '">' + (st.open ? "Open now" : "Closed now") + "</span> · " + esc(st.todayTxt) + " <span style='color:var(--faint)'>(" + DAYS[berlinNow().day] + ", Berlin time)</span>"]);
+  if (m.rating != null) rows.push(["Rating", '<span class="stars">' + "★".repeat(Math.round(m.rating)) + "</span> " + m.rating.toFixed(1) + (m.review_count ? " · " + m.review_count + " reviews" : "")]);
+  if (m.price_level) rows.push(["Price", esc(m.price_level)]);
+  if (m.popularity != null) rows.push(["Popularity", Math.round(m.popularity * 100) + " / 100"]);
+  if (q.poi_category && q.poi_category.length) rows.push(["Category", esc(q.poi_category.slice(0, 4).join(", "))]);
+  if (m.phone) rows.push(["Phone", esc(m.phone)]);
+  if (m.website) { let host = m.website; try { host = new URL(m.website).hostname.replace(/^www\./, ""); } catch (_) {} rows.push(["Website", '<a href="' + esc(m.website) + '" target="_blank" rel="noopener">' + esc(host) + "</a>"]); }
+  const amen = Object.keys(m).filter(k => m[k] === true && !/^(wheelchair_accessible)$/.test(k)).sort();
+  if (m.wheelchair_accessible === true) amen.unshift("wheelchair_accessible");
+  body.innerHTML = (photo ? '<img class="photo" alt="" src="' + esc(photo) + '" onerror="this.remove()">' : "") +
+    '<h2>' + esc(q.name) + '</h2><div class="addr">' + esc(q.full_address || q.place_formatted || "") + '</div>' +
+    (rows.length ? '<dl class="kv">' + rows.map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("") + "</dl>" : '<div class="loading">Basic record only for this place.</div>') +
+    (amen.length ? '<div class="amen">' + amen.map(k => '<span class="b">' + esc(pretty(k)) + "</span>").join("") + "</div>" : "") +
+    '<div class="src">GET /retrieve/' + esc(q.mapbox_id.slice(0, 18)) + '…?attribute_sets=basic,photos,visit,venue</div>';
+}
+function closeDrawer() { $("drawer").hidden = true; }
+$("drawerClose").addEventListener("click", closeDrawer);
+
+/* ============================================================
+   Controls
+   ============================================================ */
+function setLang(l) { state.lang = l; $("langEn").setAttribute("aria-pressed", String(l === "en")); $("langDe").setAttribute("aria-pressed", String(l === "de")); }
+function setOpt(k, v) { state[k] = !!v; $(k === "openNow" ? "optOpen" : "optRating").setAttribute("aria-pressed", String(!!v)); }
+$("langEn").addEventListener("click", () => { setLang("en"); rerun(); });
+$("langDe").addEventListener("click", () => { setLang("de"); rerun(); });
+$("optOpen").addEventListener("click", () => { setOpt("openNow", !state.openNow); rerun(); });
+$("optRating").addEventListener("click", () => { setOpt("rating", !state.rating); rerun(); });
+function rerun() { const q = $("q").value.trim(); if (q) search(q); else renderReq(buildUrl("…").url); }
+$("form").addEventListener("submit", (e) => { e.preventDefault(); search($("q").value); });
+
+$("copyCurl").addEventListener("click", async () => {
+  const url = state.lastReq || buildUrl($("q").value.trim() || "coffee shops with wifi near Alexanderplatz").url;
+  const curl = "curl -G '" + url.split("?")[0] + "' \\\n" + [...new URL(url).searchParams].map(([k, v]) => "  --data-urlencode '" + k + "=" + v.replace(/'/g, "'\\''") + "' \\").join("\n") + "\n  --data-urlencode 'access_token=YOUR_MAPBOX_TOKEN'";
+  const btn = $("copyCurl");
+  try { await navigator.clipboard.writeText(curl); btn.textContent = "Copied"; }
+  catch (_) { const ta = document.createElement("textarea"); ta.value = curl; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); btn.textContent = "Copied"; } catch (e) { btn.textContent = "Select & copy"; } ta.remove(); }
+  setTimeout(() => { btn.textContent = "Copy as curl"; }, 1600);
+});
+
+/* Chips */
+(function renderChips() {
+  const root = $("chips");
+  GROUPS.forEach(g => {
+    const sec = document.createElement("div"); sec.className = "group";
+    sec.innerHTML = '<div class="group-h">' + esc(g.title) + (g.tag ? ' <span class="tag' + (g.warn ? " warn" : "") + '">' + esc(g.tag) + "</span>" : "") + '</div><div class="chip-row"></div>';
+    const row = sec.querySelector(".chip-row");
+    g.items.forEach(it => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "chip" + (it.lang === "de" ? " de" : "") + (it.stump ? " stump" : ""); b.textContent = it.q;
+      b.addEventListener("click", () => search(it.q, { lang: it.lang || "en", rating: !!it.rating, openNow: false, stump: !!it.stump }));
+      row.appendChild(b);
+    });
+    root.appendChild(sec);
+  });
+})();
+
+/* Rotating placeholder */
+(function rotate() {
+  const ex = ["coffee shops with wifi near Alexanderplatz", "sushi in Friedrichshain open now", "Apotheke in der Nähe vom Hauptbahnhof Berlin", "EV charging stations near Kurfürstendamm", "pizza in Chicago"];
+  let i = 0; setInterval(() => { if (document.activeElement !== $("q") && !$("q").value) { i = (i + 1) % ex.length; $("q").placeholder = ex[i]; } }, 3200);
+})();
+
+/* QR */
+const shareUrl = location.origin + location.pathname.replace(/index\.html$/, "");
+$("qrUrl").textContent = shareUrl.replace(/^https?:\/\//, "");
+let qrMade = false;
+$("qrBtn").addEventListener("click", () => {
+  $("qrModal").hidden = false;
+  if (!qrMade && window.QRCode) { new QRCode($("qr"), { text: shareUrl, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M }); qrMade = true; }
+});
+$("qrClose").addEventListener("click", () => { $("qrModal").hidden = true; });
+$("qrModal").addEventListener("click", (e) => { if (e.target === $("qrModal")) $("qrModal").hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { $("qrModal").hidden = true; closeDrawer(); } if (e.key === "/" && document.activeElement !== $("q")) { e.preventDefault(); $("q").focus(); } });
+
+/* ============================================================
+   Query wall (optional Firebase Realtime Database)
+   ============================================================ */
+const CLIENT_ID = (() => { try { let c = localStorage.getItem("askberlin.cid"); if (!c) { c = Math.random().toString(36).slice(2, 10); localStorage.setItem("askberlin.cid", c); } return c; } catch (_) { return Math.random().toString(36).slice(2, 10); } })();
+let db = null;
+try {
+  const cfg = window.ASK_BERLIN_FIREBASE;
+  if (cfg && cfg.databaseURL && window.firebase) { firebase.initializeApp(cfg); db = firebase.database(); $("wallLink").hidden = false; }
+} catch (e) { db = null; }
+
+function logQuery(q, feats, ms) {
+  if (!db) return;
+  try {
+    const ref = db.ref("queries").push();
+    state.firebaseRef = ref;
+    ref.set({ q, lang: state.lang, openNow: state.openNow, rating: state.rating, n: feats.length, ms, top: feats[0] ? { name: feats[0].properties.name, place: feats[0].properties.place_formatted || "" } : null, cid: CLIENT_ID, ts: firebase.database.ServerValue.TIMESTAMP, vote: null });
+  } catch (e) { /* wall is optional */ }
+}
+function vote(v) {
+  state.voted = v;
+  $("voteUp").setAttribute("aria-pressed", String(v === "up")); $("voteDown").setAttribute("aria-pressed", String(v === "down"));
+  if (db && state.firebaseRef) { try { state.firebaseRef.update({ vote: v }); } catch (e) {} }
+}
+$("voteUp").addEventListener("click", () => vote("up"));
+$("voteDown").addEventListener("click", () => vote("down"));
+
+/* Deep link: ?q=… */
+(function init() {
+  const sp = new URLSearchParams(location.search);
+  const q = sp.get("q");
+  if (sp.get("lang") === "de") setLang("de");
+  renderReq(buildUrl(q || "…").url);
+  if (q) map.once("load", () => search(q));
+})();
+</script>
+</body>
+</html>
