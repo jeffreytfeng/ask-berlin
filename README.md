@@ -39,11 +39,19 @@ stays hidden.
 The rules allow anyone to append a query record (max 256 chars) and read the feed. Delete the
 database or tighten the rules after the event.
 
-## Query tips learned while testing
+## Query tips learned while testing (7 Oct 2026, limit=10, all results reviewed)
 
+- "<category> in <neighbourhood>" resolves reliably (Friedrichshain, Kreuzberg, Moabit, Schöneberg,
+  Wilmersdorf). "<category> near <landmark>" often does not: "hotels near Berlin Hauptbahnhof",
+  "parking near Potsdamer Platz" and "EV charging near Kurfürstendamm" all returned places near the
+  proximity point instead. "near Alexanderplatz" only works because the venue is there.
 - Add the city when the place name is ambiguous. "pharmacies near Hauptbahnhof" resolved to
-  Stuttgart; "Apotheke in der Nähe vom Hauptbahnhof Berlin" is right.
-- German works for category + neighbourhood ("Sushi in Friedrichshain") but location resolution is
-  weaker than English for phrasings like "am Potsdamer Platz" or "jetzt geöffnet".
+  Stuttgart; "Brandenburg Gate" alone resolved to Stuttgart, Arkansas.
+- German works for category + neighbourhood ("Sushi in Friedrichshain", "Pizza in Kreuzberg") and
+  exact place names ("Apotheke am Hauptbahnhof Berlin"), but not for "am Potsdamer Platz",
+  "jetzt geöffnet", "Bäckerei in …", "Supermarkt in …" or "Fahrradladen in …".
+- Small wording changes flip results: "best romantic dinner within a 15 minute walk of Brandenburg
+  Gate" went to Arkansas, adding "spot" returns Berlin restaurants. Brand + neighbourhood can
+  return only outlying stores ("Edeka in Charlottenburg" gave two in Siemensstadt).
 - Reasoning-style asks ("best … within a 15 minute walk", "plan me a day") return the places the
   API can resolve but no reasoning. That is a separate roadmap item, and the page says so.

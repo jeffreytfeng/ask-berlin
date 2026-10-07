@@ -1,0 +1,26 @@
+Ride-hailing & mobility|en|0|0|hotels near Berlin Hauptbahnhof
+Ride-hailing & mobility|de|0|0|Apotheke in der Nähe vom Hauptbahnhof Berlin
+Ride-hailing & mobility|en|0|0|Ostbahnhof Berlin
+Ride-hailing & mobility|en|0|0|Berlin Brandenburg Airport
+Food delivery|en|0|0|sushi in Friedrichshain open now
+Food delivery|de|0|0|Sushi in Friedrichshain
+Food delivery|en|0|0|pizza in Prenzlauer Berg
+Food delivery|en|0|0|late night kebab in Kreuzberg open now
+Food delivery|en|0|0|vietnamese restaurants in Prenzlauer Berg
+Parking & in-car|en|0|0|parking garage near Potsdamer Platz
+Parking & in-car|en|0|0|parking near Alexanderplatz Berlin
+Parking & in-car|en|0|0|hotels with parking in Berlin Mitte
+Parking & in-car|en|0|0|EV charging stations near Kurfürstendamm
+Parking & in-car|en|0|0|Berghain Berlin
+Search & discovery|en|0|0|coffee shops with wifi near Alexanderplatz
+Search & discovery|en|1|0|vegan cafes in Neukölln
+Search & discovery|en|0|0|bike repair shops in Kreuzberg
+Last mile & retail|en|0|0|Edeka in Charlottenburg
+Last mile & retail|en|0|0|Rewe in Friedrichshain
+Last mile & retail|en|0|0|supermarkets open now in Friedrichshain
+Beyond Berlin|en|0|0|pizza in Chicago
+Beyond Berlin|en|0|0|Blue Lagoon in Iceland
+Beyond Berlin|en|0|0|Starbucks in Seattle
+Beyond Berlin|en|0|0|Museum of Fine Arts, Boston
+Try to stump it|en|0|1|best romantic dinner within a 15 minute walk of Brandenburg Gate
+Try to stump it|en|0|1|plan me a day in Berlin

@@ -297,12 +297,13 @@ const VENUE = { lng: 13.412742, lat: 52.525195, name: "Pressehaus Podium" };
 const API = "https://api.mapbox.com/search/searchbox/v1";
 const LIMIT = 10;
 
-/* Every example below was run against the public preview on 6 Oct 2026 from this venue
-   and returned the intended place(s) in the top results. */
+/* Every example below was run against the public preview on 7 Oct 2026 from this venue with
+   limit=10 and all ten results were reviewed. Phrasing matters: "in <neighbourhood>" resolves
+   reliably, "near <landmark>" often does not. Re-test with curl before changing any of these. */
 const GROUPS = [
   { title: "Ride-hailing & mobility", items: [
-    { q: "hotels near Berlin Hauptbahnhof" },
-    { q: "Apotheke in der Nähe vom Hauptbahnhof Berlin", lang: "de" },
+    { q: "hotels in Moabit" },
+    { q: "Apotheke am Hauptbahnhof Berlin", lang: "de" },
     { q: "Ostbahnhof Berlin" },
     { q: "Berlin Brandenburg Airport" },
   ]},
@@ -310,24 +311,26 @@ const GROUPS = [
     { q: "sushi in Friedrichshain open now" },
     { q: "Sushi in Friedrichshain", lang: "de" },
     { q: "pizza in Prenzlauer Berg" },
+    { q: "Pizza in Kreuzberg", lang: "de" },
     { q: "late night kebab in Kreuzberg open now" },
-    { q: "vietnamese restaurants in Prenzlauer Berg" },
+    { q: "vietnamese restaurants in Friedrichshain" },
   ]},
   { title: "Parking & in-car", items: [
-    { q: "parking garage near Potsdamer Platz" },
     { q: "parking near Alexanderplatz Berlin" },
     { q: "hotels with parking in Berlin Mitte" },
-    { q: "EV charging stations near Kurfürstendamm" },
+    { q: "EV charging in Wilmersdorf" },
     { q: "Berghain Berlin" },
   ]},
   { title: "Search & discovery", items: [
     { q: "coffee shops with wifi near Alexanderplatz" },
-    { q: "vegan cafes in Neukölln", rating: true },
+    { q: "a quiet cafe to work from in Mitte with good wifi" },
+    { q: "museums in Berlin Mitte" },
     { q: "bike repair shops in Kreuzberg" },
   ]},
   { title: "Last mile & retail", items: [
-    { q: "Edeka in Charlottenburg" },
+    { q: "Edeka in Schöneberg" },
     { q: "Rewe in Friedrichshain" },
+    { q: "Lidl in Berlin Mitte" },
     { q: "supermarkets open now in Friedrichshain" },
   ]},
   { title: "Beyond Berlin", tag: "same call, anywhere", items: [
@@ -337,8 +340,9 @@ const GROUPS = [
     { q: "Museum of Fine Arts, Boston" },
   ]},
   { title: "Try to stump it", tag: "not yet: reasoning is a separate roadmap item", warn: true, items: [
-    { q: "best romantic dinner within a 15 minute walk of Brandenburg Gate", stump: true },
-    { q: "plan me a day in Berlin", stump: true },
+    { q: "best romantic dinner spot within a 15 minute walk of Brandenburg Gate", stump: true },
+    { q: "best Italian restaurant within a 15 minute walk from here", stump: true },
+    { q: "plan me a day in Berlin with museums and a nice dinner", stump: true },
   ]},
 ];
 
@@ -457,12 +461,15 @@ function renderResults(feats, ms, q, stump) {
   const pills = ['<span class="pill good">' + ms + ' ms</span>', '<span class="pill">' + feats.length + (feats.length === 1 ? " result" : " results") + "</span>"];
   $("statusPills").innerHTML = pills.join("");
   const list = $("results"); list.innerHTML = "";
-  if (!feats.length) {
+  if (!feats.length && stump) {
+    const n = $("notice"); n.className = "notice"; n.hidden = false;
+    n.innerHTML = "<b>Expected miss.</b> Nothing in the places index matches an itinerary request, and the API does not invent results. Planning and reasoning over places is a separate, planned capability.";
+  } else if (!feats.length) {
     const n = $("notice"); n.className = "notice"; n.hidden = false;
     n.innerHTML = "<b>No results.</b> Try adding the city name (\"… in Berlin\"), or loosen the filters.";
   } else if (stump) {
     const n = $("notice"); n.className = "notice"; n.hidden = false;
-    n.innerHTML = "<b>Expected miss.</b> The API resolved the parts it understands (category, place) and returned places. It does not yet reason about \"best\", walking time or itineraries. That is a separate, planned capability.";
+    n.innerHTML = "<b>Partial by design.</b> The API resolved the parts it understands (category, location) and returned matching places. It does not yet reason about \"best\" or walking time. That is a separate, planned capability.";
   }
   feats.forEach((f, i) => {
     const p = f.properties; const m = p.metadata || {};
